@@ -5,7 +5,6 @@ import { PluginType } from 'constants/pluginType';
 import loading from '../../components/loading/loading';
 import keyboardnavigation from '../../scripts/keyboardNavigation';
 import dialogHelper from '../../components/dialogHelper/dialogHelper';
-import TouchHelper from '../../scripts/touchHelper';
 import { appRouter } from '../../components/router/appRouter';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
 import { translateHtml } from '../../lib/globalize';
@@ -14,6 +13,7 @@ import * as userSettings from '../../scripts/settings/userSettings';
 import Events from '../../utils/events.ts';
 import BookOsd from '../bookPlayer/BookOsd/BookOsd';
 import { renderComponent } from '../../utils/reactUtils';
+import PdfGestures from './gestures';
 
 import 'material-design-icons-iconfont';
 import html from './template.html';
@@ -34,11 +34,16 @@ const PRELOAD_PAGES = 2;
 // rendered pages further away from the visible ones are released to bound memory use
 const KEEP_PAGES = PRELOAD_PAGES;
 // zoom limits relative to the fitted page
+const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
+const DOUBLE_TAP_ZOOM = 2.5;
 // pdf.js accepts scales up to 10
 const MAX_SCALE = 10;
+// share of the width at both sides where a tap turns the page
+const TAP_ZONE = 0.3;
 const SCROLL_PROGRESS_DELAY = 1000;
 const RESIZE_DELAY = 150;
+const WHEEL_GESTURE_GAP = 250;
 // pdf.js TextLayerMode.DISABLE, text selection would interfere with the touch gestures
 const TEXT_LAYER_DISABLED = 0;
 
@@ -76,6 +81,13 @@ export class PdfPlayer {
         this.onScaleChanging = this.onScaleChanging.bind(this);
         this.onUpdateViewArea = this.onUpdateViewArea.bind(this);
         this.onResize = this.onResize.bind(this);
+        this.onTap = this.onTap.bind(this);
+        this.onDoubleTap = this.onDoubleTap.bind(this);
+        this.onSwipe = this.onSwipe.bind(this);
+        this.onPinchStart = this.onPinchStart.bind(this);
+        this.onPinchMove = this.onPinchMove.bind(this);
+        this.onPinchEnd = this.onPinchEnd.bind(this);
+        this.onWheel = this.onWheel.bind(this);
         this.toggleFullscreen = this.toggleFullscreen.bind(this);
         this.next = this.next.bind(this);
         this.previous = this.previous.bind(this);
@@ -132,6 +144,9 @@ export class PdfPlayer {
         clearTimeout(this.resizeTimeout);
 
         window.removeEventListener('resize', this.onResize);
+        this.gestures?.destroy();
+        this.gestures = null;
+        this.pinch = null;
         this.container = null;
 
         if (this.pdfViewer) {
@@ -239,25 +254,16 @@ export class PdfPlayer {
         }
     }
 
-    addSwipeGestures(element) {
-        this.touchHelper = new TouchHelper(element);
-        Events.on(this.touchHelper, 'swiperight', () => this.previous());
-        Events.on(this.touchHelper, 'swipeleft', () => this.next());
-    }
-
     onDialogClosed() {
         this.stop();
     }
 
     bindEvents() {
-        this.addSwipeGestures(this.container);
         this.mediaElement?.addEventListener('close', this.onDialogClosed, { once: true });
         document.addEventListener('keydown', this.onWindowKeyDown);
     }
 
     unbindEvents() {
-        this.touchHelper?.destroy();
-        this.touchHelper = null;
         this.mediaElement?.removeEventListener('close', this.onDialogClosed);
         document.removeEventListener('keydown', this.onWindowKeyDown);
     }
@@ -291,8 +297,12 @@ export class PdfPlayer {
         }
 
         this.mediaElement = elem;
+        // the gestures decide whether a tap toggles the controls or turns the page
+        this.osdRef = { current: null };
         this.unmountBookOsd = renderComponent(BookOsd, {
             item: options.items[0],
+            osdRef: this.osdRef,
+            disableClickToggle: true,
             onExit: this.onDialogClosed,
             onPrevious: this.previous,
             onNext: this.next,
@@ -402,6 +412,16 @@ export class PdfPlayer {
         this.eventBus.on('pagerendered', this.onPageRendered);
         this.eventBus.on('scalechanging', this.onScaleChanging);
         this.eventBus.on('updateviewarea', this.onUpdateViewArea);
+
+        this.gestures = new PdfGestures(container, {
+            onTap: this.onTap,
+            onDoubleTap: this.onDoubleTap,
+            onSwipe: this.onSwipe,
+            onPinchStart: this.onPinchStart,
+            onPinchMove: this.onPinchMove,
+            onPinchEnd: this.onPinchEnd,
+            onWheel: this.onWheel
+        });
 
         // the container covers the whole window
         window.addEventListener('resize', this.onResize);
@@ -644,6 +664,108 @@ export class PdfPlayer {
         const x = rect.left + rect.width / 2;
         const y = rect.top + rect.height / 2;
         this.zoomTo(this.pdfViewer.currentScale * factor, this.getAnchor(x, y), x, y);
+    }
+
+    onTap(x) {
+        if (!this.loaded) return;
+
+        if (this.settings.mode === 'flip') {
+            const rect = this.container.getBoundingClientRect();
+            const position = (x - rect.left) / rect.width;
+
+            if (position < TAP_ZONE) {
+                this.previous();
+                return;
+            }
+            if (position > 1 - TAP_ZONE) {
+                this.next();
+                return;
+            }
+        }
+
+        this.osdRef?.current?.toggle();
+    }
+
+    onDoubleTap(x, y) {
+        if (!this.loaded) return;
+
+        const anchor = this.getAnchor(x, y);
+        if (this.isZoomed()) {
+            this.zoomTo(this.getFitScale(), anchor, x, y);
+        } else {
+            this.zoomTo(this.getFitScale() * DOUBLE_TAP_ZOOM, anchor, x, y);
+        }
+    }
+
+    onSwipe(direction, start) {
+        if (!this.loaded || this.settings.mode !== 'flip') return;
+
+        // a zoomed page is panned first, the page turns once its edge is reached
+        if (direction === 'left' && start.scrollLeft >= start.maxScrollLeft - 2) {
+            this.next();
+        } else if (direction === 'right' && start.scrollLeft <= 2) {
+            this.previous();
+        }
+    }
+
+    onPinchStart(x, y) {
+        if (!this.loaded) return;
+
+        const rect = this.viewerElement.getBoundingClientRect();
+        this.pinch = {
+            anchor: this.getAnchor(x, y),
+            x,
+            y,
+            scale: this.pdfViewer.currentScale
+        };
+        this.viewerElement.style.transformOrigin = `${x - rect.left}px ${y - rect.top}px`;
+    }
+
+    onPinchMove(scale, x, y) {
+        const pinch = this.pinch;
+        if (!pinch) return;
+
+        // preview with a CSS transform, the pages are rendered again once the gesture ends
+        const fitScale = this.getFitScale();
+        const minScale = fitScale * MIN_ZOOM / pinch.scale;
+        const maxScale = Math.min(fitScale * MAX_ZOOM, MAX_SCALE) / pinch.scale;
+        const previewScale = clamp(scale, minScale, maxScale);
+        this.viewerElement.style.transform = `translate(${x - pinch.x}px, ${y - pinch.y}px) scale(${previewScale})`;
+    }
+
+    onPinchEnd(scale, x, y) {
+        const pinch = this.pinch;
+        if (!pinch) return;
+        this.pinch = null;
+
+        this.viewerElement.style.transform = '';
+        this.viewerElement.style.transformOrigin = '';
+        this.zoomTo(pinch.scale * scale, pinch.anchor, x, y);
+    }
+
+    onWheel(e) {
+        if (!this.loaded || this.settings.mode !== 'flip') return;
+        if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+
+        // turn the page with the mouse wheel once the page is scrolled to its end
+        const container = this.container;
+        const atTop = container.scrollTop <= 0;
+        const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 1;
+        if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) return;
+
+        e.preventDefault();
+
+        // one page per wheel gesture, touchpads keep sending events for a while
+        const now = Date.now();
+        const newGesture = now - (this.lastWheelTime || 0) > WHEEL_GESTURE_GAP;
+        this.lastWheelTime = now;
+        if (!newGesture) return;
+
+        if (e.deltaY > 0) {
+            this.next();
+        } else {
+            this.previous();
+        }
     }
 
     canPlayMediaType(mediaType) {

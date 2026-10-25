@@ -16,7 +16,13 @@
         left: 0;
         overflow: auto;
         overscroll-behavior: contain;
+        // native panning only, pinch and double tap zoom are handled by the player
+        touch-action: pan-x pan-y;
         outline: none;
+
+        &.pdfPlayerDragging {
+            cursor: grabbing;
+        }
     }
 
     // the necessary parts of pdfjs-dist/web/pdf_viewer.css
