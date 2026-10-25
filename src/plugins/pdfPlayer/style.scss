@@ -66,6 +66,11 @@
             height: 100%;
         }
 
+        .page .pdfPlayerDetailCanvas {
+            position: absolute;
+            pointer-events: none;
+        }
+
         .spread {
             margin-inline: 0;
             text-align: center;
