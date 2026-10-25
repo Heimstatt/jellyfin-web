@@ -13,6 +13,7 @@ import * as userSettings from '../../scripts/settings/userSettings';
 import Events from '../../utils/events.ts';
 import BookOsd from '../bookPlayer/BookOsd/BookOsd';
 import { renderComponent } from '../../utils/reactUtils';
+import PdfDetailRenderer from './detailRenderer';
 import PdfGestures from './gestures';
 
 import 'material-design-icons-iconfont';
@@ -80,6 +81,7 @@ export class PdfPlayer {
         this.onPageRendered = this.onPageRendered.bind(this);
         this.onScaleChanging = this.onScaleChanging.bind(this);
         this.onUpdateViewArea = this.onUpdateViewArea.bind(this);
+        this.onScroll = this.onScroll.bind(this);
         this.onResize = this.onResize.bind(this);
         this.onTap = this.onTap.bind(this);
         this.onDoubleTap = this.onDoubleTap.bind(this);
@@ -147,7 +149,13 @@ export class PdfPlayer {
         this.gestures?.destroy();
         this.gestures = null;
         this.pinch = null;
-        this.container = null;
+        this.detailRenderer?.destroy();
+        this.detailRenderer = null;
+
+        if (this.container) {
+            this.container.removeEventListener('scroll', this.onScroll);
+            this.container = null;
+        }
 
         if (this.pdfViewer) {
             this.pdfViewer.setDocument(null);
@@ -378,7 +386,7 @@ export class PdfPlayer {
     }
 
     createViewer(elem) {
-        const { EventBus, LinkTarget, PDFLinkService, PDFViewer } = this.pdfjsViewer;
+        const { EventBus, LinkTarget, PDFLinkService, PDFViewer, RenderingStates } = this.pdfjsViewer;
         const { AnnotationEditorType, AnnotationMode } = this.pdfjs;
 
         const container = elem.querySelector('.pdfPlayerContainer');
@@ -413,6 +421,11 @@ export class PdfPlayer {
         this.eventBus.on('scalechanging', this.onScaleChanging);
         this.eventBus.on('updateviewarea', this.onUpdateViewArea);
 
+        this.detailRenderer = new PdfDetailRenderer(this.pdfViewer, container, {
+            annotationMode: AnnotationMode.ENABLE,
+            finishedState: RenderingStates.FINISHED
+        });
+
         this.gestures = new PdfGestures(container, {
             onTap: this.onTap,
             onDoubleTap: this.onDoubleTap,
@@ -423,6 +436,7 @@ export class PdfPlayer {
             onWheel: this.onWheel
         });
 
+        container.addEventListener('scroll', this.onScroll, { passive: true });
         // the container covers the whole window
         window.addEventListener('resize', this.onResize);
     }
@@ -509,16 +523,23 @@ export class PdfPlayer {
         loading.hide();
 
         this.releaseDistantPages();
+        this.detailRenderer?.schedule();
     }
 
     onScaleChanging(e) {
         if (e.presetValue && FITS.includes(e.presetValue)) {
             this.fitScale = e.scale;
         }
+
+        this.detailRenderer?.clear();
     }
 
     onUpdateViewArea() {
         this.releaseDistantPages();
+    }
+
+    onScroll() {
+        this.detailRenderer?.schedule();
     }
 
     onResize() {
