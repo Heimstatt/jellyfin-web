@@ -1,4 +1,4 @@
-import React, { type FC, useCallback, useEffect, useRef, useState } from 'react';
+import React, { type FC, type ReactNode, type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import './BookOsd.scss';
 import IconButton from '../../../elements/emby-button/IconButton';
@@ -6,6 +6,14 @@ import globalize from 'lib/globalize';
 import * as userSettings from '../../../scripts/settings/userSettings';
 import type { BaseItemDto } from '@jellyfin/sdk/lib/generated-client';
 import Screenfull from 'screenfull';
+
+/** Lets a player show and hide the controls, e.g. when it handles taps itself. */
+export interface BookOsdHandle {
+    /** Show the controls, they hide again after a delay unless autoHide is false. */
+    show: (autoHide?: boolean) => void;
+    hide: () => void;
+    toggle: () => void;
+}
 
 interface BookOsdProps {
     item: BaseItemDto;
@@ -19,6 +27,13 @@ interface BookOsdProps {
     onToggleDirection?: () => void;
     onToggleLayout?: () => void;
     onToggleFullscreen: () => void;
+    /** Additional controls at the end of the top row. */
+    headerControls?: ReactNode;
+    /** Additional controls in the bottom row, they take the free space between the navigation buttons and the other buttons. */
+    footerControls?: ReactNode;
+    osdRef?: Ref<BookOsdHandle>;
+    /** The player toggles the controls itself (via osdRef), clicks outside of the controls don't. */
+    disableClickToggle?: boolean;
 }
 
 interface ComicsPlayerSettings {
@@ -37,10 +52,17 @@ const BookOsd: FC<BookOsdProps> = ({
     onIncreaseFontSize,
     onToggleDirection,
     onToggleLayout,
-    onToggleFullscreen
+    onToggleFullscreen,
+    headerControls,
+    footerControls,
+    osdRef,
+    disableClickToggle = false
 }) => {
     const settings = userSettings.getComicsPlayerSettings(item.Id!) as ComicsPlayerSettings;
     const timeout = useRef<ReturnType<typeof setTimeout>>();
+    // read in the click listener without registering it again
+    const clickToggle = useRef(!disableClickToggle);
+    clickToggle.current = !disableClickToggle;
 
     const [direction, setDirection] = useState(settings.langDir === 'rtl');
     const [layout, setLayout] = useState(settings.pagesPerView === 2);
@@ -51,6 +73,25 @@ const BookOsd: FC<BookOsdProps> = ({
         clearTimeout(timeout.current);
         timeout.current = setTimeout(() => setVisible(false), 2000);
     }, []);
+
+    useImperativeHandle(osdRef, () => ({
+        show: (autoHide = true) => {
+            if (autoHide) {
+                scheduleHide();
+            } else {
+                clearTimeout(timeout.current);
+            }
+            setVisible(true);
+        },
+        hide: () => {
+            clearTimeout(timeout.current);
+            setVisible(false);
+        },
+        toggle: () => {
+            scheduleHide();
+            setVisible(state => !state);
+        }
+    }), [scheduleHide]);
 
     const updateFullscreen = useCallback((state: boolean) => {
         if (Screenfull.isEnabled && Screenfull.isFullscreen !== state) {
@@ -88,6 +129,7 @@ const BookOsd: FC<BookOsdProps> = ({
             // apply this before the BookOsd check so IconButton clicks will reset the timer
             scheduleHide();
 
+            if (!clickToggle.current) return;
             if ((event.target as Element | null)?.closest?.('.bookOsdRow')) return;
             setVisible(state => !state);
         };
@@ -109,12 +151,22 @@ const BookOsd: FC<BookOsdProps> = ({
             <div className='bookOsdRow' style={{ paddingTop: 'env(safe-area-inset-top)', ...(!visible && { opacity: 0, pointerEvents: 'none' }) }}>
                 <IconButton onClick={onExit} icon='arrow_back' title={globalize.translate('ButtonBack')} />
                 <span className='bookOsdTitle'>{item.Name}</span>
+                {headerControls && (
+                    <>
+                        <div className='bookOsdSpacer' />
+                        {headerControls}
+                    </>
+                )}
             </div>
 
             <div className='bookOsdRow' style={{ paddingBottom: 'env(safe-area-inset-bottom)', ...(!visible && { opacity: 0, pointerEvents: 'none' }) }}>
                 <IconButton onClick={onPrevious} icon='navigate_before' title={globalize.translate('Previous')} />
                 <IconButton onClick={onNext} icon='navigate_next' title={globalize.translate('Next')} />
-                <div className='bookOsdSpacer' />
+                {footerControls ? (
+                    <div className='bookOsdControls'>{footerControls}</div>
+                ) : (
+                    <div className='bookOsdSpacer' />
+                )}
 
                 {onOpenTableOfContents && (
                     <IconButton
