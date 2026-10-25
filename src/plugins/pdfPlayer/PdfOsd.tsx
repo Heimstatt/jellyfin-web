@@ -123,10 +123,11 @@ interface PdfOsdProps {
     onToggleMode: () => void;
     onToggleFit: () => void;
     onToggleSpread: () => void;
+    onOpenThumbnails: () => void;
     onSeek: (page: number) => void;
 }
 
-/** BookOsd with the controls BookOsd has no equivalent for: layout settings and the page slider. */
+/** BookOsd with the controls BookOsd has no equivalent for: layout settings, page overview and the page slider. */
 const PdfOsd: FC<PdfOsdProps> = ({
     item,
     state,
@@ -138,12 +139,18 @@ const PdfOsd: FC<PdfOsdProps> = ({
     onToggleMode,
     onToggleFit,
     onToggleSpread,
+    onOpenThumbnails,
     onSeek
 }) => {
     const { mode, fit, spread, page, pageCount } = useSyncExternalStore(state.subscribe, state.getSnapshot);
 
     const headerControls = (
         <>
+            <IconButton
+                onClick={onOpenThumbnails}
+                icon='apps'
+                title={globalize.translate('PdfReaderPageOverview')}
+            />
             <IconButton
                 onClick={onToggleMode}
                 icon={MODE_BUTTONS[mode].icon}

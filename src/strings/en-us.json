@@ -1411,6 +1411,7 @@
     "PdfReaderFitWidth": "Fit width",
     "PdfReaderPageByPage": "Page by page",
     "PdfReaderPageOf": "{0} / {1}",
+    "PdfReaderPageOverview": "Page overview",
     "PdfReaderSpreadAuto": "Two pages in landscape",
     "PdfReaderSpreadDouble": "Two pages",
     "PdfReaderSpreadSingle": "Single page",

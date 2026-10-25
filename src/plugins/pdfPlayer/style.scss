@@ -114,6 +114,77 @@
         font-variant-numeric: tabular-nums;
     }
 
+    .pdfPlayerThumbnails {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1003;
+        display: flex;
+        flex-direction: column;
+        color: #fff;
+        background: rgba(20, 20, 20, 0.97);
+    }
+
+    .pdfPlayerThumbnailsHeader {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        padding: max(0.25em, env(safe-area-inset-top)) max(0.5em, env(safe-area-inset-right)) 0.25em max(1em, env(safe-area-inset-left));
+    }
+
+    .pdfPlayerThumbnailsTitle {
+        flex-grow: 1;
+        font-size: 1.2em;
+    }
+
+    .btnPdfThumbnailsClose {
+        color: inherit;
+    }
+
+    .pdfPlayerThumbnailGrid {
+        flex-grow: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr));
+        align-content: start;
+        gap: 1em;
+        padding: 0.5em max(1em, env(safe-area-inset-right)) max(1em, env(safe-area-inset-bottom)) max(1em, env(safe-area-inset-left));
+    }
+
+    .pdfPlayerThumbnail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 0;
+        border: none;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .pdfPlayerThumbnailImage {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #fff;
+        outline: 3px solid transparent;
+    }
+
+    .pdfPlayerThumbnail-current .pdfPlayerThumbnailImage,
+    .pdfPlayerThumbnail:focus-visible .pdfPlayerThumbnailImage {
+        outline-color: #00a4dc;
+    }
+
+    .pdfPlayerThumbnailLabel {
+        margin-top: 0.3em;
+        font-size: 0.9em;
+    }
+
     .annotationLayer {
         position: absolute;
         top: 0;

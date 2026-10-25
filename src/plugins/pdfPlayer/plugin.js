@@ -15,8 +15,10 @@ import { renderComponent } from '../../utils/reactUtils';
 import PdfDetailRenderer from './detailRenderer';
 import PdfGestures from './gestures';
 import PdfOsd, { PdfOsdState } from './PdfOsd';
+import PdfThumbnails from './thumbnails';
 
 import 'material-design-icons-iconfont';
+import '../../elements/emby-button/paper-icon-button-light';
 import html from './template.html';
 import './style.scss';
 
@@ -98,6 +100,8 @@ export class PdfPlayer {
         this.toggleFit = this.toggleFit.bind(this);
         this.toggleSpread = this.toggleSpread.bind(this);
         this.goToPage = this.goToPage.bind(this);
+        this.openThumbnails = this.openThumbnails.bind(this);
+        this.closeThumbnails = this.closeThumbnails.bind(this);
         this.toggleFullscreen = this.toggleFullscreen.bind(this);
         this.next = this.next.bind(this);
         this.previous = this.previous.bind(this);
@@ -160,6 +164,8 @@ export class PdfPlayer {
         this.pinch = null;
         this.detailRenderer?.destroy();
         this.detailRenderer = null;
+        this.thumbnails?.destroy();
+        this.thumbnails = null;
 
         if (this.container) {
             this.container.removeEventListener('scroll', this.onScroll);
@@ -214,6 +220,15 @@ export class PdfPlayer {
 
         // Skip modified keys
         if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+
+        if (this.thumbnails?.isOpen()) {
+            const key = keyboardnavigation.getKeyName(e);
+            if (key === 'Escape' || key === 'Backspace') {
+                e.preventDefault();
+                this.closeThumbnails();
+            }
+            return;
+        }
 
         // the page slider handles its own keys
         if (e.target?.classList?.contains('pdfPlayerSlider') && e.key !== 'Escape') return;
@@ -280,11 +295,13 @@ export class PdfPlayer {
 
     bindEvents() {
         this.mediaElement?.addEventListener('close', this.onDialogClosed, { once: true });
+        this.mediaElement?.querySelector('.btnPdfThumbnailsClose').addEventListener('click', this.closeThumbnails);
         document.addEventListener('keydown', this.onWindowKeyDown);
     }
 
     unbindEvents() {
         this.mediaElement?.removeEventListener('close', this.onDialogClosed);
+        this.mediaElement?.querySelector('.btnPdfThumbnailsClose').removeEventListener('click', this.closeThumbnails);
         document.removeEventListener('keydown', this.onWindowKeyDown);
     }
 
@@ -330,6 +347,7 @@ export class PdfPlayer {
             onToggleMode: this.toggleMode,
             onToggleFit: this.toggleFit,
             onToggleSpread: this.toggleSpread,
+            onOpenThumbnails: this.openThumbnails,
             onSeek: this.goToPage
         }, elem.querySelector('.pdfPlayerOsd'));
 
@@ -389,6 +407,11 @@ export class PdfPlayer {
                     const startIndex = Math.floor((options.startPositionTicks || 0) / 10000);
                     this.progress = clamp(startIndex, 0, book.numPages - 1);
                     this.osdState.update({ page: this.progress + 1, pageCount: book.numPages });
+
+                    this.thumbnails = new PdfThumbnails(elem.querySelector('.pdfPlayerThumbnails'), book, pageNumber => {
+                        this.closeThumbnails();
+                        this.goToPage(pageNumber);
+                    });
 
                     this.pdfViewer.setDocument(book);
                     this.linkService.setDocument(book);
@@ -630,6 +653,18 @@ export class PdfPlayer {
         this.settings.spread = nextValue(SPREADS, this.settings.spread);
         this.saveSettings();
         if (this.loaded) this.applyLayout();
+    }
+
+    openThumbnails() {
+        if (!this.loaded || !this.thumbnails) return;
+
+        this.osdRef?.current?.hide();
+        this.thumbnails.open(this.pdfViewer.currentPageNumber);
+    }
+
+    closeThumbnails() {
+        this.thumbnails?.close();
+        this.container?.focus({ preventScroll: true });
     }
 
     goToPage(pageNumber) {
