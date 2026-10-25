@@ -1,24 +1,121 @@
-#container {
-    position: relative;
-    display: grid;
-    place-items: center;
-    /* stylelint-disable-next-line declaration-block-no-duplicate-properties */
-    height: 100%;
-    top: env(safe-area-inset-top);
-    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-}
-
 #pdfPlayer {
     position: relative;
     height: 100%;
     width: 100%;
     overflow: hidden;
     z-index: 100;
-    background: #fff;
+    background: #2b2b2b;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 
-    #canvas {
-        position: relative;
-        display: block;
-        margin: auto;
+    .pdfPlayerContainer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        outline: none;
+    }
+
+    // the necessary parts of pdfjs-dist/web/pdf_viewer.css
+    .pdfViewer {
+        --scale-factor: 1;
+
+        .page {
+            direction: ltr;
+            position: relative;
+            overflow: visible;
+            margin: 0 auto 10px;
+            border: none;
+            background-clip: content-box;
+            background-color: #fff;
+        }
+
+        .dummyPage {
+            position: relative;
+            width: 0;
+            height: var(--viewer-container-height);
+        }
+
+        .canvasWrapper {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .page canvas {
+            margin: 0;
+            display: block;
+        }
+
+        .page canvas[hidden] {
+            display: none;
+        }
+
+        .page canvas[zooming] {
+            width: 100%;
+            height: 100%;
+        }
+
+        .spread {
+            margin-inline: 0;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        // the pages of a spread touch each other like a printed magazine
+        .spread .page,
+        .spread .dummyPage {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 0 10px;
+        }
+    }
+
+    // page by page: center the page vertically
+    .pdfPlayerFlip .pdfViewer {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 100%;
+    }
+
+    .pdfPlayerFlip .pdfViewer .page,
+    .pdfPlayerFlip .pdfViewer .spread .page {
+        margin-bottom: 0;
+    }
+
+    .annotationLayer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        transform-origin: 0 0;
+        z-index: 3;
+
+        section {
+            position: absolute;
+            text-align: initial;
+            pointer-events: auto;
+            box-sizing: border-box;
+            transform-origin: 0 0;
+        }
+
+        .linkAnnotation > a {
+            position: absolute;
+            font-size: 1em;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        // only links are used, other annotations are drawn on the canvas
+        > section:not(.linkAnnotation) {
+            display: none;
+        }
     }
 }
