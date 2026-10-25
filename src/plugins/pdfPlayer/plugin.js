@@ -11,10 +11,10 @@ import { translateHtml } from '../../lib/globalize';
 import screenSaverManager from 'scripts/screensavermanager';
 import * as userSettings from '../../scripts/settings/userSettings';
 import Events from '../../utils/events.ts';
-import BookOsd from '../bookPlayer/BookOsd/BookOsd';
 import { renderComponent } from '../../utils/reactUtils';
 import PdfDetailRenderer from './detailRenderer';
 import PdfGestures from './gestures';
+import PdfOsd, { PdfOsdState } from './PdfOsd';
 
 import 'material-design-icons-iconfont';
 import html from './template.html';
@@ -67,6 +67,10 @@ function loadSettings() {
     };
 }
 
+function nextValue(values, value) {
+    return values[(values.indexOf(value) + 1) % values.length];
+}
+
 export class PdfPlayer {
     constructor() {
         this.name = 'PDF Player';
@@ -90,6 +94,10 @@ export class PdfPlayer {
         this.onPinchMove = this.onPinchMove.bind(this);
         this.onPinchEnd = this.onPinchEnd.bind(this);
         this.onWheel = this.onWheel.bind(this);
+        this.toggleMode = this.toggleMode.bind(this);
+        this.toggleFit = this.toggleFit.bind(this);
+        this.toggleSpread = this.toggleSpread.bind(this);
+        this.goToPage = this.goToPage.bind(this);
         this.toggleFullscreen = this.toggleFullscreen.bind(this);
         this.next = this.next.bind(this);
         this.previous = this.previous.bind(this);
@@ -103,6 +111,7 @@ export class PdfPlayer {
         this.settings = loadSettings();
         this.fitScale = 0;
         this.visibleRange = null;
+        this.osdState = new PdfOsdState({ ...this.settings, page: 1, pageCount: 0 });
 
         screenSaverManager.block();
         loading.show();
@@ -206,6 +215,9 @@ export class PdfPlayer {
         // Skip modified keys
         if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
+        // the page slider handles its own keys
+        if (e.target?.classList?.contains('pdfPlayerSlider') && e.key !== 'Escape') return;
+
         // zoom keys are matched by the character they type, their position depends on the keyboard layout
         switch (e.key) {
             case '+':
@@ -307,14 +319,18 @@ export class PdfPlayer {
         this.mediaElement = elem;
         // the gestures decide whether a tap toggles the controls or turns the page
         this.osdRef = { current: null };
-        this.unmountBookOsd = renderComponent(BookOsd, {
+        this.unmountBookOsd = renderComponent(PdfOsd, {
             item: options.items[0],
+            state: this.osdState,
             osdRef: this.osdRef,
-            disableClickToggle: true,
             onExit: this.onDialogClosed,
             onPrevious: this.previous,
             onNext: this.next,
-            onToggleFullscreen: this.toggleFullscreen
+            onToggleFullscreen: this.toggleFullscreen,
+            onToggleMode: this.toggleMode,
+            onToggleFit: this.toggleFit,
+            onToggleSpread: this.toggleSpread,
+            onSeek: this.goToPage
         }, elem.querySelector('.pdfPlayerOsd'));
 
         return elem;
@@ -372,6 +388,7 @@ export class PdfPlayer {
                     // the position is stored as page index
                     const startIndex = Math.floor((options.startPositionTicks || 0) / 10000);
                     this.progress = clamp(startIndex, 0, book.numPages - 1);
+                    this.osdState.update({ page: this.progress + 1, pageCount: book.numPages });
 
                     this.pdfViewer.setDocument(book);
                     this.linkService.setDocument(book);
@@ -504,6 +521,8 @@ export class PdfPlayer {
     }
 
     onPageChanging(e) {
+        this.osdState.update({ page: e.pageNumber });
+
         if (!this.loaded) return;
 
         const progress = e.pageNumber - 1;
@@ -588,6 +607,29 @@ export class PdfPlayer {
         this.container.classList.toggle('pdfPlayerFlip', this.settings.mode === 'flip');
         this.layoutWidth = this.container.clientWidth;
         this.resetZoom();
+    }
+
+    saveSettings() {
+        userSettings.set(SETTINGS_KEY, JSON.stringify(this.settings), false);
+        this.osdState.update(this.settings);
+    }
+
+    toggleMode() {
+        this.settings.mode = nextValue(MODES, this.settings.mode);
+        this.saveSettings();
+        if (this.loaded) this.applyLayout();
+    }
+
+    toggleFit() {
+        this.settings.fit = nextValue(FITS, this.settings.fit);
+        this.saveSettings();
+        if (this.loaded) this.resetZoom();
+    }
+
+    toggleSpread() {
+        this.settings.spread = nextValue(SPREADS, this.settings.spread);
+        this.saveSettings();
+        if (this.loaded) this.applyLayout();
     }
 
     goToPage(pageNumber) {

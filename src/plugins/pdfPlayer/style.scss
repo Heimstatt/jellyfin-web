@@ -99,6 +99,21 @@
         margin-bottom: 0;
     }
 
+    .pdfPlayerSlider {
+        flex-grow: 1;
+        min-width: 0;
+        margin: 0 0.5em;
+        accent-color: #00a4dc;
+    }
+
+    .pdfPlayerPageLabel {
+        flex-shrink: 0;
+        min-width: 5em;
+        margin-right: 0.5em;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
     .annotationLayer {
         position: absolute;
         top: 0;
