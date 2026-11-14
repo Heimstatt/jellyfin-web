@@ -2,24 +2,263 @@
     position: relative;
     height: 100%;
     width: 100%;
-    overflow: none;
+    overflow: hidden;
     z-index: 100;
-    background: #fff;
+    background: #2b2b2b;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 
-    #canvas {
-        display: block;
-        margin: auto;
-    }
-
-    .actionButtons {
-        right: 0.5vh;
-        top: 0.5vh;
-        z-index: 1002;
+    .pdfPlayerContainer {
         position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        // native panning only, pinch and double tap zoom are handled by the player
+        touch-action: pan-x pan-y;
+        outline: none;
+
+        &.pdfPlayerDragging {
+            cursor: grabbing;
+        }
     }
 
-    .actionButtonIcon {
-        color: #000;
-        opacity: 0.7;
+    // the necessary parts of pdfjs-dist/web/pdf_viewer.css
+    .pdfViewer {
+        --scale-factor: 1;
+
+        .page {
+            direction: ltr;
+            position: relative;
+            overflow: visible;
+            margin: 0 auto 10px;
+            border: none;
+            background-clip: content-box;
+            background-color: #fff;
+        }
+
+        .dummyPage {
+            position: relative;
+            width: 0;
+            height: var(--viewer-container-height);
+        }
+
+        .canvasWrapper {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .page canvas {
+            margin: 0;
+            display: block;
+        }
+
+        .page canvas[hidden] {
+            display: none;
+        }
+
+        .page canvas[zooming] {
+            width: 100%;
+            height: 100%;
+        }
+
+        .page .pdfPlayerDetailCanvas {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .spread {
+            margin-inline: 0;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        // the pages of a spread touch each other like a printed magazine
+        .spread .page,
+        .spread .dummyPage {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 0 10px;
+        }
+    }
+
+    // page by page: center the page vertically: center the page vertically
+    .pdfPlayerFlip .pdfViewer {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 100%;
+    }
+
+    .pdfPlayerFlip .pdfViewer .page,
+    .pdfPlayerFlip .pdfViewer .spread .page {
+        margin-bottom: 0;
+    }
+
+    .annotationLayer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        transform-origin: 0 0;
+        z-index: 3;
+
+        section {
+            position: absolute;
+            text-align: initial;
+            pointer-events: auto;
+            box-sizing: border-box;
+            transform-origin: 0 0;
+        }
+
+        .linkAnnotation > a {
+            position: absolute;
+            font-size: 1em;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        // only links are used, other annotations are drawn on the canvas
+        > section:not(.linkAnnotation) {
+            display: none;
+        }
+    }
+
+    .pdfPlayerChrome {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 1002;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        padding: 0.25em max(0.5em, env(safe-area-inset-right)) 0.25em max(0.5em, env(safe-area-inset-left));
+        color: #fff;
+        background: rgba(0, 0, 0, 0.75);
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    }
+
+    .pdfPlayerTopBar {
+        top: 0;
+        padding-top: max(0.25em, env(safe-area-inset-top));
+    }
+
+    .pdfPlayerBottomBar {
+        bottom: 0;
+        padding-bottom: max(0.25em, env(safe-area-inset-bottom));
+    }
+
+    &.pdfPlayerChromeHidden {
+        .pdfPlayerTopBar {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .pdfPlayerBottomBar {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+    }
+
+    .pdfPlayerButtonIcon {
+        color: #fff;
+    }
+
+    .pdfPlayerTitle {
+        flex-grow: 1;
+        min-width: 0;
+        margin: 0 0.5em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .pdfPlayerSlider {
+        flex-grow: 1;
+        min-width: 0;
+        margin: 0 0.5em;
+        accent-color: #00a4dc;
+    }
+
+    .pdfPlayerPageLabel {
+        flex-shrink: 0;
+        min-width: 6em;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .pdfPlayerThumbnails {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1003;
+        display: flex;
+        flex-direction: column;
+        color: #fff;
+        background: rgba(20, 20, 20, 0.97);
+    }
+
+    .pdfPlayerThumbnailsHeader {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        padding: max(0.25em, env(safe-area-inset-top)) max(0.5em, env(safe-area-inset-right)) 0.25em max(1em, env(safe-area-inset-left));
+    }
+
+    .pdfPlayerThumbnailsTitle {
+        flex-grow: 1;
+        font-size: 1.2em;
+    }
+
+    .pdfPlayerThumbnailGrid {
+        flex-grow: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr));
+        align-content: start;
+        gap: 1em;
+        padding: 0.5em max(1em, env(safe-area-inset-right)) max(1em, env(safe-area-inset-bottom)) max(1em, env(safe-area-inset-left));
+    }
+
+    .pdfPlayerThumbnail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 0;
+        border: none;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .pdfPlayerThumbnailImage {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #fff;
+        outline: 3px solid transparent;
+    }
+
+    .pdfPlayerThumbnail-current .pdfPlayerThumbnailImage,
+    .pdfPlayerThumbnail:focus-visible .pdfPlayerThumbnailImage {
+        outline-color: #00a4dc;
+    }
+
+    .pdfPlayerThumbnailLabel {
+        margin-top: 0.3em;
+        font-size: 0.9em;
     }
 }

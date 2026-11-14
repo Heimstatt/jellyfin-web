@@ -1,0 +1,43 @@
+<div class="pdfPlayerContainer" tabindex="-1">
+    <div class="pdfViewer"></div>
+</div>
+
+<div class="pdfPlayerTopBar pdfPlayerChrome">
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnExit" tabindex="-1" title="${ButtonClose}">
+        <span class="material-icons pdfPlayerButtonIcon close" aria-hidden="true"></span>
+    </button>
+    <div class="pdfPlayerTitle"></div>
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfThumbnails" tabindex="-1" title="${PdfReaderPageOverview}">
+        <span class="material-icons pdfPlayerButtonIcon apps" aria-hidden="true"></span>
+    </button>
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfMode" tabindex="-1">
+        <span class="material-icons pdfPlayerButtonIcon" aria-hidden="true"></span>
+    </button>
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfSpread" tabindex="-1">
+        <span class="material-icons pdfPlayerButtonIcon" aria-hidden="true"></span>
+    </button>
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfFit" tabindex="-1">
+        <span class="material-icons pdfPlayerButtonIcon" aria-hidden="true"></span>
+    </button>
+</div>
+
+<div class="pdfPlayerBottomBar pdfPlayerChrome">
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfPrevious" tabindex="-1" title="${Previous}">
+        <span class="material-icons pdfPlayerButtonIcon navigate_before" aria-hidden="true"></span>
+    </button>
+    <input type="range" class="pdfPlayerSlider" min="1" max="1" step="1" value="1" tabindex="-1" />
+    <div class="pdfPlayerPageLabel"></div>
+    <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfNext" tabindex="-1" title="${Next}">
+        <span class="material-icons pdfPlayerButtonIcon navigate_next" aria-hidden="true"></span>
+    </button>
+</div>
+
+<div class="pdfPlayerThumbnails hide">
+    <div class="pdfPlayerThumbnailsHeader">
+        <div class="pdfPlayerThumbnailsTitle">${PdfReaderPageOverview}</div>
+        <button is="paper-icon-button-light" class="autoSize pdfPlayerButton btnPdfThumbnailsClose" tabindex="-1" title="${ButtonClose}">
+            <span class="material-icons pdfPlayerButtonIcon close" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="pdfPlayerThumbnailGrid"></div>
+</div>
